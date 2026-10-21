@@ -1,0 +1,11 @@
+export class PixelSurface{
+ constructor(width=32,height=width,data){this.width=width;this.height=height;this.data=data?new Uint8ClampedArray(data):new Uint8ClampedArray(width*height*4);}
+ snapshot(){return new Uint8ClampedArray(this.data);}
+ restore(data){this.data.set(data);}
+ pixel(x,y,color,size=1){const offset=Math.floor((size-1)/2);for(let j=0;j<size;j++)for(let i=0;i<size;i++){const px=Math.round(x)+i-offset,py=Math.round(y)+j-offset;if(px>=0&&py>=0&&px<this.width&&py<this.height)this.data.set(color,(py*this.width+px)*4);}}
+ line(x0,y0,x1,y1,color,size=1){x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);const dx=Math.abs(x1-x0),sx=x0<x1?1:-1,dy=-Math.abs(y1-y0),sy=y0<y1?1:-1;let error=dx+dy;for(;;){this.pixel(x0,y0,color,size);if(x0===x1&&y0===y1)break;const e=2*error;if(e>=dy){error+=dy;x0+=sx;}if(e<=dx){error+=dx;y0+=sy;}}}
+ rect(x0,y0,x1,y1,color,filled=true){const l=Math.min(x0,x1),r=Math.max(x0,x1),t=Math.min(y0,y1),b=Math.max(y0,y1);for(let y=t;y<=b;y++)for(let x=l;x<=r;x++)if(filled||x===l||x===r||y===t||y===b)this.pixel(x,y,color);}
+ ellipse(x0,y0,x1,y1,color,filled=true){const cx=(x0+x1)/2,cy=(y0+y1)/2,rx=Math.max(.5,Math.abs(x1-x0)/2),ry=Math.max(.5,Math.abs(y1-y0)/2);for(let y=Math.min(y0,y1);y<=Math.max(y0,y1);y++)for(let x=Math.min(x0,x1);x<=Math.max(x0,x1);x++){const d=((x-cx)/rx)**2+((y-cy)/ry)**2;if(d<=1.2&&(filled||((x-cx)/Math.max(.1,rx-1))**2+((y-cy)/Math.max(.1,ry-1))**2>=1))this.pixel(x,y,color);}}
+ fill(x,y,color){if(x<0||y<0||x>=this.width||y>=this.height)return;const start=(y*this.width+x)*4,target=this.data.slice(start,start+4);if(target.every((c,i)=>c===color[i]))return;const stack=[y*this.width+x],visited=new Uint8Array(this.width*this.height);while(stack.length){const index=stack.pop();if(visited[index])continue;visited[index]=1;const offset=index*4;if(!target.every((c,i)=>this.data[offset+i]===c))continue;this.data.set(color,offset);const px=index%this.width,py=Math.floor(index/this.width);if(px>0)stack.push(index-1);if(px<this.width-1)stack.push(index+1);if(py>0)stack.push(index-this.width);if(py<this.height-1)stack.push(index+this.width);}}
+}
+export function rgba(hex){return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16),255];}
