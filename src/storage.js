@@ -1,0 +1,5 @@
+let db;
+async function database(){if(db)return db;return new Promise((resolve,reject)=>{const r=indexedDB.open('soulcode-studio',1);r.onupgradeneeded=()=>r.result.createObjectStore('projects',{keyPath:'id'});r.onsuccess=()=>{db=r.result;resolve(db);};r.onerror=()=>reject(r.error);});}
+export async function saveProject(p){const d=await database();return new Promise((resolve,reject)=>{const tx=d.transaction('projects','readwrite');tx.objectStore('projects').put(p);tx.oncomplete=()=>{try{localStorage.setItem('soulcode-last',p.id);}catch{}resolve();};tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Saving was interrupted'));});}
+export async function allProjects(){const d=await database();return new Promise((resolve,reject)=>{const r=d.transaction('projects').objectStore('projects').getAll();r.onsuccess=()=>resolve(r.result.sort((a,b)=>b.updated-a.updated));r.onerror=()=>reject(r.error);});}
+export function download(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),30000);}
