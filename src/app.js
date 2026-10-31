@@ -6,6 +6,7 @@ import {Renderer} from './renderer.js';
 import {GameSession,playerStyles} from './runtime.js';
 import {icon,art,esc} from './art.js';
 import {saveProject,allProjects,download} from './storage.js';
+import {isConsole,start as startConsoleKit,allowContextMenu} from './console-kit.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 let project=makeProject(),sceneIndex=0,selectedId=project.scenes[0].objects[0].id,renderer,session=null,panel='assets',libraryTab='library',category='All',search='',tool='select',pathMode=false,history=[],future=[],saveTimer,toastTimer,previewAudio,saveRevision=0,buildMode=false,switching=false;
 const brush={tool:'floor',shape:'cube',tile:'grass',layer:0,erase:false};
@@ -115,7 +116,7 @@ let drag=null,gesture=null,terrainDirty=false;const pointers=new Map();
 function touchPair(){return [...pointers.values()].filter(p=>p.type==='touch').slice(0,2);}
 function gestureState(){const a=touchPair();return a.length<2?null:{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2,d:Math.max(5,Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y))};}
 function paintAt(e){const cell=renderer.terrainCell(e.clientX,e.clientY,brush);renderer.brushCell=cell;renderer.brushHeight=brush.tool==='wall'?3:brush.tool==='floor'?.05:SHAPES[brush.shape].height;if(!drag)return;const key=`${cell.x},${cell.y},${cell.z}`;if(drag.cell===key)return;const column=renderer.mode==='3d'&&brush.layer===0&&brush.tool!=='floor'?`${cell.x},${cell.z}`:key;drag.visited??=new Set();if(drag.visited.has(column))return;drag.visited.add(column);if(!drag.mutated){checkpoint();drag.mutated=true;}const previous=drag.lastCell||cell,steps=Math.min(80,Math.max(Math.abs(cell.x-previous.x),Math.abs(cell.z-previous.z),Math.abs(cell.y-previous.y)));let any=false;for(let i=0;i<=steps;i++){const f=steps?i/steps:1;any=paintCell(currentScene().map,{x:Math.round(previous.x+(cell.x-previous.x)*f),z:Math.round(previous.z+(cell.z-previous.z)*f),y:Math.round(previous.y+(cell.y-previous.y)*f)},brush)||any;}if(any)terrainDirty=true;else if(currentScene().map.blocks.length>=MAX_BLOCKS&&!brush.erase)toast('4,096 blocks in this scene. A new scene gives you more room.');drag.cell=key;drag.lastCell=cell;}
-viewport.addEventListener('contextmenu',e=>e.preventDefault());
+viewport.addEventListener('contextmenu',e=>{if(!allowContextMenu())e.preventDefault();});
 viewport.addEventListener('pointerdown',e=>{if(session||e.target.closest('button'))return;e.preventDefault();viewport.focus();pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,type:e.pointerType});viewport.setPointerCapture(e.pointerId);
  if(touchPair().length===2){if(drag?.mutated){const prior=history.pop();if(prior){project=prior.project;sceneIndex=prior.sceneIndex;selectedId=prior.selectedId;resetRenderer();renderAll();}}drag=null;terrainDirty=false;gesture=gestureState();renderer.brushCell=null;return;}
  const hit=renderer.hit(e.clientX,e.clientY,currentScene().objects),action=e.button===1||tool==='pan'||e.shiftKey?'pan':e.button===2||tool==='orbit'||e.altKey?'orbit':buildMode?'build':pathMode?'path':'select';
@@ -148,4 +149,8 @@ function bindUI(){hydrate();$$('[data-panel]').forEach(b=>b.onclick=()=>{if(sess
  document.addEventListener('visibilitychange',()=>{if(document.hidden){saveNow();previewAudio?.pause();}});
 }
 async function init(){try{const projects=await allProjects();let last;try{last=localStorage.getItem('soulcode-last');}catch{}const found=projects.find(p=>p.id===last);if(found){project=validateProject(found);selectedId=project.scenes[0].objects[0]?.id||null;}}catch{}resetRenderer();bindUI();renderAll();saveSoon();function loop(t){if(terrainDirty){terrainDirty=false;renderer.setTerrain(currentScene());}if(!session)renderer.draw(currentScene().objects,t/1000);requestAnimationFrame(loop);}requestAnimationFrame(loop);}
+// Xbox One: the studio works there but is made for a mouse and keyboard. TV-size text (html.console-kit CSS), a note that
+// can be hidden for good, and B (Escape) closes a dialog, the play preview or a path instead of leaving the page.
+if(isConsole()){startConsoleKit({card:false});consoleNote();window.addEventListener('keydown',e=>{if(e.key!=='Escape'||!(session||modal.open||pathMode))return;e.preventDefault();if(modal.open&&!session)modal.close();},true);}
+function consoleNote(){try{if(localStorage.getItem('soulcode-console-note'))return;}catch{}const note=document.createElement('div');note.className='console-note';note.setAttribute('role','note');const text=document.createElement('span');text.textContent='Soulcode works here, but it is at its best on a computer with a mouse and keyboard.';const ok=document.createElement('button');ok.type='button';ok.textContent='Got it';ok.onclick=()=>{note.remove();try{localStorage.setItem('soulcode-console-note','1');}catch{}};note.append(text,ok);document.body.append(note);}
 init().catch(e=>{console.error(e);toast('The studio could not start. Reload to try again.');});
